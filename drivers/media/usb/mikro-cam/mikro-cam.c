@@ -365,8 +365,17 @@ static ssize_t mc_write(struct file *file, const char *user_buffer,
 	dev = file->private_data;
 
 	/* verify that we actually have some data to write */
-	if (count == 0)
-		goto exit;
+	if (count == 0) {
+	  printk("No data to write\n");
+	  goto exit;
+	}
+	else {
+	  printk("Data to write %d\n", count);
+	  if (count >= 1) {
+	    char t = user_buffer[0];
+	    printk("%c\n", (char)t);
+	  }
+	}
 
 	/*
 	 * limit the number of URBs in flight to stop a user from using up all
@@ -384,79 +393,79 @@ static ssize_t mc_write(struct file *file, const char *user_buffer,
 		}
 	}
 
-	spin_lock_irq(&dev->err_lock);
-	retval = dev->errors;
-	if (retval < 0) {
-		/* any error is reported once */
-		dev->errors = 0;
-		/* to preserve notifications about reset */
-		retval = (retval == -EPIPE) ? retval : -EIO;
-	}
-	spin_unlock_irq(&dev->err_lock);
-	if (retval < 0)
-		goto error;
+/* 	spin_lock_irq(&dev->err_lock); */
+/* 	retval = dev->errors; */
+/* 	if (retval < 0) { */
+/* 		/\* any error is reported once *\/ */
+/* 		dev->errors = 0; */
+/* 		/\* to preserve notifications about reset *\/ */
+/* 		retval = (retval == -EPIPE) ? retval : -EIO; */
+/* 	} */
+/* 	spin_unlock_irq(&dev->err_lock); */
+/* 	if (retval < 0) */
+/* 		goto error; */
 
-	/* create a urb, and a buffer for it, and copy the data to the urb */
-	urb = usb_alloc_urb(0, GFP_KERNEL);
-	if (!urb) {
-		retval = -ENOMEM;
-		goto error;
-	}
+/* 	/\* create a urb, and a buffer for it, and copy the data to the urb *\/ */
+/* 	urb = usb_alloc_urb(0, GFP_KERNEL); */
+/* 	if (!urb) { */
+/* 		retval = -ENOMEM; */
+/* 		goto error; */
+/* 	} */
 
-	buf = usb_alloc_coherent(dev->udev, writesize, GFP_KERNEL,
-				 &urb->transfer_dma);
-	if (!buf) {
-		retval = -ENOMEM;
-		goto error;
-	}
+/* 	buf = usb_alloc_coherent(dev->udev, writesize, GFP_KERNEL, */
+/* 				 &urb->transfer_dma); */
+/* 	if (!buf) { */
+/* 		retval = -ENOMEM; */
+/* 		goto error; */
+/* 	} */
 
-	if (copy_from_user(buf, user_buffer, writesize)) {
-		retval = -EFAULT;
-		goto error;
-	}
+/* 	if (copy_from_user(buf, user_buffer, writesize)) { */
+/* 		retval = -EFAULT; */
+/* 		goto error; */
+/* 	} */
 
-	/* this lock makes sure we don't submit URBs to gone devices */
-	mutex_lock(&dev->io_mutex);
-	if (dev->disconnected) {		/* disconnect() was called */
-		mutex_unlock(&dev->io_mutex);
-		retval = -ENODEV;
-		goto error;
-	}
+/* 	/\* this lock makes sure we don't submit URBs to gone devices *\/ */
+/* 	mutex_lock(&dev->io_mutex); */
+/* 	if (dev->disconnected) {		/\* disconnect() was called *\/ */
+/* 		mutex_unlock(&dev->io_mutex); */
+/* 		retval = -ENODEV; */
+/* 		goto error; */
+/* 	} */
 
-	/* initialize the urb properly */
-	usb_fill_bulk_urb(urb, dev->udev,
-			  usb_sndbulkpipe(dev->udev, dev->bulk_out_endpointAddr),
-			  buf, writesize, mc_write_bulk_callback, dev);
-	urb->transfer_flags |= URB_NO_TRANSFER_DMA_MAP;
-	usb_anchor_urb(urb, &dev->submitted);
+/* 	/\* initialize the urb properly *\/ */
+/* 	usb_fill_bulk_urb(urb, dev->udev, */
+/* 			  usb_sndbulkpipe(dev->udev, dev->bulk_out_endpointAddr), */
+/* 			  buf, writesize, mc_write_bulk_callback, dev); */
+/* 	urb->transfer_flags |= URB_NO_TRANSFER_DMA_MAP; */
+/* 	usb_anchor_urb(urb, &dev->submitted); */
 
-	/* send the data out the bulk port */
-	retval = usb_submit_urb(urb, GFP_KERNEL);
-	mutex_unlock(&dev->io_mutex);
-	if (retval) {
-		dev_err(&dev->interface->dev,
-			"%s - failed submitting write urb, error %d\n",
-			__func__, retval);
-		goto error_unanchor;
-	}
+/* 	/\* send the data out the bulk port *\/ */
+/* 	retval = usb_submit_urb(urb, GFP_KERNEL); */
+/* 	mutex_unlock(&dev->io_mutex); */
+/* 	if (retval) { */
+/* 		dev_err(&dev->interface->dev, */
+/* 			"%s - failed submitting write urb, error %d\n", */
+/* 			__func__, retval); */
+/* 		goto error_unanchor; */
+/* 	} */
 
-	/*
-	 * release our reference to this urb, the USB core will eventually free
-	 * it entirely
-	 */
-	usb_free_urb(urb);
+/* 	/\* */
+/* 	 * release our reference to this urb, the USB core will eventually free */
+/* 	 * it entirely */
+/* 	 *\/ */
+/* 	usb_free_urb(urb); */
 
 
-	return writesize;
+/* 	return writesize; */
 
-error_unanchor:
-	usb_unanchor_urb(urb);
-error:
-	if (urb) {
-		usb_free_coherent(dev->udev, writesize, buf, urb->transfer_dma);
-		usb_free_urb(urb);
-	}
-	up(&dev->limit_sem);
+/* error_unanchor: */
+/* 	usb_unanchor_urb(urb); */
+/* error: */
+/* 	if (urb) { */
+/* 		usb_free_coherent(dev->udev, writesize, buf, urb->transfer_dma); */
+/* 		usb_free_urb(urb); */
+/* 	} */
+/* 	up(&dev->limit_sem); */
 
 exit:
 	return retval;
@@ -477,7 +486,7 @@ static const struct file_operations mc_fops = {
  * and to have the device registered with the driver core
  */
 static struct usb_class_driver mc_class = {
-	.name =		"skel%d",
+	.name =		"mikro-cam-%d",
 	.fops =		&mc_fops,
 	.minor_base =	USB_MC_MINOR_BASE,
 };
@@ -506,8 +515,10 @@ static int mc_probe(struct usb_interface *interface,
 
 	/* set up the endpoint information */
 	/* use only the first bulk-in and bulk-out endpoints */
+	/* retval = usb_find_common_endpoints(interface->cur_altsetting, */
+	/* 		&bulk_in, &bulk_out, NULL, NULL); */
 	retval = usb_find_common_endpoints(interface->cur_altsetting,
-			&bulk_in, &bulk_out, NULL, NULL);
+			&bulk_in, NULL, NULL, NULL);
 	if (retval) {
 		dev_err(&interface->dev,
 			"Could not find both bulk-in and bulk-out endpoints\n");
@@ -527,7 +538,7 @@ static int mc_probe(struct usb_interface *interface,
 		goto error;
 	}
 
-	dev->bulk_out_endpointAddr = bulk_out->bEndpointAddress;
+	/* dev->bulk_out_endpointAddr = bulk_out->bEndpointAddress; */
 
 	/* save our data pointer in this interface device */
 	usb_set_intfdata(interface, dev);
