@@ -225,6 +225,8 @@ static ssize_t mc_read(struct file *file, char *buffer, size_t count,
 	int rv;
 	bool ongoing_io;
 
+	printk("Enter read\n");
+	
 	dev = file->private_data;
 
 	if (!count)
@@ -240,158 +242,152 @@ static ssize_t mc_read(struct file *file, char *buffer, size_t count,
 		goto exit;
 	}
 
-	/* if IO is under way, we must not touch things */
-retry:
-	spin_lock_irq(&dev->err_lock);
-	ongoing_io = dev->ongoing_read;
-	spin_unlock_irq(&dev->err_lock);
+/* 	/\* if IO is under way, we must not touch things *\/ */
+/* retry: */
+/* 	spin_lock_irq(&dev->err_lock); */
+/* 	ongoing_io = dev->ongoing_read; */
+/* 	spin_unlock_irq(&dev->err_lock); */
 
-	if (ongoing_io) {
-		/* nonblocking IO shall not wait */
-		if (file->f_flags & O_NONBLOCK) {
-			rv = -EAGAIN;
-			goto exit;
-		}
-		/*
-		 * IO may take forever
-		 * hence wait in an interruptible state
-		 */
-		rv = wait_event_interruptible(dev->bulk_in_wait, (!dev->ongoing_read));
-		if (rv < 0)
-			goto exit;
-	}
+/* 	if (ongoing_io) { */
+/* 		/\* nonblocking IO shall not wait *\/ */
+/* 		if (file->f_flags & O_NONBLOCK) { */
+/* 			rv = -EAGAIN; */
+/* 			goto exit; */
+/* 		} */
+/* 		/\* */
+/* 		 * IO may take forever */
+/* 		 * hence wait in an interruptible state */
+/* 		 *\/ */
+/* 		rv = wait_event_interruptible(dev->bulk_in_wait, (!dev->ongoing_read)); */
+/* 		if (rv < 0) */
+/* 			goto exit; */
+/* 	} */
 
-	/* errors must be reported */
-	rv = dev->errors;
-	if (rv < 0) {
-		/* any error is reported once */
-		dev->errors = 0;
-		/* to preserve notifications about reset */
-		rv = (rv == -EPIPE) ? rv : -EIO;
-		/* report it */
-		goto exit;
-	}
+/* 	/\* errors must be reported *\/ */
+/* 	rv = dev->errors; */
+/* 	if (rv < 0) { */
+/* 		/\* any error is reported once *\/ */
+/* 		dev->errors = 0; */
+/* 		/\* to preserve notifications about reset *\/ */
+/* 		rv = (rv == -EPIPE) ? rv : -EIO; */
+/* 		/\* report it *\/ */
+/* 		goto exit; */
+/* 	} */
 
-	/*
-	 * if the buffer is filled we may satisfy the read
-	 * else we need to start IO
-	 */
+/* 	/\* */
+/* 	 * if the buffer is filled we may satisfy the read */
+/* 	 * else we need to start IO */
+/* 	 *\/ */
 
-	if (dev->bulk_in_filled) {
-		/* we had read data */
-		size_t available = dev->bulk_in_filled - dev->bulk_in_copied;
-		size_t chunk = min(available, count);
+/* 	if (dev->bulk_in_filled) { */
+/* 		/\* we had read data *\/ */
+/* 		size_t available = dev->bulk_in_filled - dev->bulk_in_copied; */
+/* 		size_t chunk = min(available, count); */
 
-		if (!available) {
-			/*
-			 * all data has been used
-			 * actual IO needs to be done
-			 */
-			rv = mc_do_read_io(dev, count);
-			if (rv < 0)
-				goto exit;
-			else
-				goto retry;
-		}
-		/*
-		 * data is available
-		 * chunk tells us how much shall be copied
-		 */
+/* 		if (!available) { */
+/* 			/\* */
+/* 			 * all data has been used */
+/* 			 * actual IO needs to be done */
+/* 			 *\/ */
+/* 			rv = mc_do_read_io(dev, count); */
+/* 			if (rv < 0) */
+/* 				goto exit; */
+/* 			else */
+/* 				goto retry; */
+/* 		} */
+/* 		/\* */
+/* 		 * data is available */
+/* 		 * chunk tells us how much shall be copied */
+/* 		 *\/ */
 
-		if (copy_to_user(buffer,
-				 dev->bulk_in_buffer + dev->bulk_in_copied,
-				 chunk))
-			rv = -EFAULT;
-		else
-			rv = chunk;
+/* 		if (copy_to_user(buffer, */
+/* 				 dev->bulk_in_buffer + dev->bulk_in_copied, */
+/* 				 chunk)) */
+/* 			rv = -EFAULT; */
+/* 		else */
+/* 			rv = chunk; */
 
-		dev->bulk_in_copied += chunk;
+/* 		dev->bulk_in_copied += chunk; */
 
-		/*
-		 * if we are asked for more than we have,
-		 * we start IO but don't wait
-		 */
-		if (available < count)
-			mc_do_read_io(dev, count - chunk);
-	} else {
-		/* no data in the buffer */
-		rv = mc_do_read_io(dev, count);
-		if (rv < 0)
-			goto exit;
-		else
-			goto retry;
-	}
+/* 		/\* */
+/* 		 * if we are asked for more than we have, */
+/* 		 * we start IO but don't wait */
+/* 		 *\/ */
+/* 		if (available < count) */
+/* 			mc_do_read_io(dev, count - chunk); */
+/* 	} else { */
+/* 		/\* no data in the buffer *\/ */
+/* 		rv = mc_do_read_io(dev, count); */
+/* 		if (rv < 0) */
+/* 			goto exit; */
+/* 		else */
+/* 			goto retry; */
+/* 	} */
 exit:
 	mutex_unlock(&dev->io_mutex);
 	return rv;
 }
 
-static void mc_write_bulk_callback(struct urb *urb)
-{
-	struct usb_mc *dev;
-	unsigned long flags;
+/* static void mc_write_bulk_callback(struct urb *urb) */
+/* { */
+/* 	struct usb_mc *dev; */
+/* 	unsigned long flags; */
 
-	dev = urb->context;
+/* 	dev = urb->context; */
 
-	/* sync/async unlink faults aren't errors */
-	if (urb->status) {
-		if (!(urb->status == -ENOENT ||
-		    urb->status == -ECONNRESET ||
-		    urb->status == -ESHUTDOWN))
-			dev_err(&dev->interface->dev,
-				"%s - nonzero write bulk status received: %d\n",
-				__func__, urb->status);
+/* 	/\* sync/async unlink faults aren't errors *\/ */
+/* 	if (urb->status) { */
+/* 		if (!(urb->status == -ENOENT || */
+/* 		    urb->status == -ECONNRESET || */
+/* 		    urb->status == -ESHUTDOWN)) */
+/* 			dev_err(&dev->interface->dev, */
+/* 				"%s - nonzero write bulk status received: %d\n", */
+/* 				__func__, urb->status); */
 
-		spin_lock_irqsave(&dev->err_lock, flags);
-		dev->errors = urb->status;
-		spin_unlock_irqrestore(&dev->err_lock, flags);
-	}
+/* 		spin_lock_irqsave(&dev->err_lock, flags); */
+/* 		dev->errors = urb->status; */
+/* 		spin_unlock_irqrestore(&dev->err_lock, flags); */
+/* 	} */
 
-	/* free up our allocated buffer */
-	usb_free_coherent(urb->dev, urb->transfer_buffer_length,
-			  urb->transfer_buffer, urb->transfer_dma);
-	up(&dev->limit_sem);
-}
+/* 	/\* free up our allocated buffer *\/ */
+/* 	usb_free_coherent(urb->dev, urb->transfer_buffer_length, */
+/* 			  urb->transfer_buffer, urb->transfer_dma); */
+/* 	up(&dev->limit_sem); */
+/* } */
 
-static ssize_t mc_write(struct file *file, const char *user_buffer,
-			  size_t count, loff_t *ppos)
-{
-	struct usb_mc *dev;
-	int retval = 0;
-	struct urb *urb = NULL;
-	char *buf = NULL;
-	size_t writesize = min_t(size_t, count, MAX_TRANSFER);
+/* static ssize_t mc_write(struct file *file, const char *user_buffer, */
+/* 			  size_t count, loff_t *ppos) */
+/* { */
+/* 	struct usb_mc *dev; */
+/* 	int retval = 0; */
+/* 	struct urb *urb = NULL; */
+/* 	char *buf = NULL; */
+/* 	size_t writesize = min_t(size_t, count, MAX_TRANSFER); */
 
-	dev = file->private_data;
+/* 	dev = file->private_data; */
 
-	/* verify that we actually have some data to write */
-	if (count == 0) {
-	  printk("No data to write\n");
-	  goto exit;
-	}
-	else {
-	  printk("Data to write %d\n", count);
-	  if (count >= 1) {
-	    char t = user_buffer[0];
-	    printk("%c\n", (char)t);
-	  }
-	}
+/* 	/\* verify that we actually have some data to write *\/ */
+/* 	if (count == 0) */
+/* 	  goto exit; */
+/* 	else { */
+/* 	  goto exit; */
+/* 	} */
 
-	/*
-	 * limit the number of URBs in flight to stop a user from using up all
-	 * RAM
-	 */
-	if (!(file->f_flags & O_NONBLOCK)) {
-		if (down_interruptible(&dev->limit_sem)) {
-			retval = -ERESTARTSYS;
-			goto exit;
-		}
-	} else {
-		if (down_trylock(&dev->limit_sem)) {
-			retval = -EAGAIN;
-			goto exit;
-		}
-	}
+/* 	/\* */
+/* 	 * limit the number of URBs in flight to stop a user from using up all */
+/* 	 * RAM */
+/* 	 *\/ */
+/* 	if (!(file->f_flags & O_NONBLOCK)) { */
+/* 		if (down_interruptible(&dev->limit_sem)) { */
+/* 			retval = -ERESTARTSYS; */
+/* 			goto exit; */
+/* 		} */
+/* 	} else { */
+/* 		if (down_trylock(&dev->limit_sem)) { */
+/* 			retval = -EAGAIN; */
+/* 			goto exit; */
+/* 		} */
+/* 	} */
 
 /* 	spin_lock_irq(&dev->err_lock); */
 /* 	retval = dev->errors; */
@@ -467,14 +463,14 @@ static ssize_t mc_write(struct file *file, const char *user_buffer,
 /* 	} */
 /* 	up(&dev->limit_sem); */
 
-exit:
-	return retval;
-}
+/* exit: */
+/* 	return retval; */
+/* } */
 
 static const struct file_operations mc_fops = {
 	.owner =	THIS_MODULE,
 	.read =		mc_read,
-	.write =	mc_write,
+	/* .write =	mc_write, */
 	.open =		mc_open,
 	.release =	mc_release,
 	/* .flush =	skel_flush, */
@@ -495,7 +491,7 @@ static int mc_probe(struct usb_interface *interface,
 		      const struct usb_device_id *id)
 {
 	struct usb_mc *dev;
-	struct usb_endpoint_descriptor *bulk_in, *bulk_out;
+	struct usb_endpoint_descriptor *bulk_in;
 	int retval;
 
 	/* allocate memory for our device state and initialize it */
